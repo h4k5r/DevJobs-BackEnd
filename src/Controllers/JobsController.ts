@@ -1,7 +1,11 @@
-import {Request, Response, NextFunction} from "express";
+import {Request, Response} from "express";
 import dotEnv from "dotenv";
 import jwt from "jsonwebtoken";
-import {Employer, EmployerInterface, Job, JobInterface} from "../Models/Employers";
+import {Employer, EmployerInterface} from "../Models/Employers";
+import {Job, JobInterface} from "../Models/Job";
+import {extractToken} from "../Utils/AuthUtils";
+import Applicant, {ApplicantInterface} from "../Models/Applicant";
+
 
 dotEnv.config()
 
@@ -112,15 +116,54 @@ export const DeleteJob = async (req: Request, res: Response) => {
     const job: JobInterface | null = await Job.findById(jobId);
     if (!job) return res.status(404).json({message: "Job Not Found"});
     const deletedJob: JobInterface | null = await job.remove();
-    if (!deletedJob) return res.status(500).json({message: "Internal Server Error"});
+    if (!deletedJob) return res.status(500).json({
+        success: false,
+        message: "Internal Server Error"
+    });
     res.json({
         success: true,
         message: "Delete Job"
     });
 }
 
+export const ApplyToJob = async (req: Request, res: Response) => {
+    const jobId = req.params.id;
+    const job: JobInterface | null = await Job.findById(jobId);
+    if (!job)
+        return res.status(404).json({
+            success: false,
+            message: "Job Not Found"
+        });
+    const applicant: ApplicantInterface | null = await getApplicantFromToken(req);
+    if (!applicant)
+        return res.status(404).json({
+            success: false,
+            message: "Applicant Not Found"
+        });
+    if (job.applicants.find(jobApplicant => jobApplicant.toString() === applicant._id.toString()))
+        return res.status(400).json({
+            success: false,
+            message: "Already Applied"
+        });
+
+    job.applicants.push(applicant._id);
+    applicant.appliedJobs.push(job._id);
+    const savedJob: JobInterface | null = await job.save();
+    const savedApplicant: ApplicantInterface | null = await applicant.save();
+    if (!savedJob || !savedApplicant)
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+
+    res.json({
+        success: true,
+        message: "Applied to Job"
+    });
+}
+
 const getEmployerFromToken: (req: Request) => Promise<EmployerInterface | null> = async (req: Request) => {
-    const token: string = req.headers.authorization?.split(" ")[1] ? req.headers.authorization?.split(" ")[1] : "";
+    const token: string = extractToken(req);
     const JWT_SECRET: string = process.env.JWT_EMPLOYER_SECRET ? process.env.JWT_EMPLOYER_SECRET : "";
     let employerId: string = "";
     jwt.verify(token, JWT_SECRET, (err, decoded) => {
@@ -129,4 +172,16 @@ const getEmployerFromToken: (req: Request) => Promise<EmployerInterface | null> 
     });
     const employer: EmployerInterface | null = await Employer.findById(employerId);
     return employer;
+}
+
+const getApplicantFromToken: (req: Request) => Promise<ApplicantInterface | null> = async (req: Request) => {
+    const token: string = extractToken(req);
+    const JWT_SECRET: string = process.env.JWT_APPLICANT_SECRET ? process.env.JWT_APPLICANT_SECRET : "";
+    let applicantId: string = "";
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) return
+        applicantId = decoded?._id ? decoded?._id : "";
+    });
+    const applicant: ApplicantInterface | null = await Applicant.findById(applicantId);
+    return applicant;
 }

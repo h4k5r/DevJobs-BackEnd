@@ -1,4 +1,5 @@
-import { Schema, Document, model, Model} from "mongoose";
+import {Document, model, Model, Schema} from "mongoose";
+
 const EmployerSchema = new Schema({
     companyName: {
         type: String,
@@ -24,7 +25,7 @@ const EmployerSchema = new Schema({
         type: Date,
         required: false
     },
-    verified: {
+    isVerified: {
         type: Boolean,
         default: false
     },
@@ -36,7 +37,6 @@ const EmployerSchema = new Schema({
         type: Boolean,
         default: false
     },
-
     companyWebsite: {
         type: String,
         required: false
@@ -56,7 +56,7 @@ export interface EmployerInterface extends Document {
     password: string,
     resetPasswordToken: string,
     resetPasswordExpires: Date,
-    verified: boolean,
+    isVerified: boolean,
     verificationToken: string,
     profileComplete: boolean,
     companyWebsite: string,
@@ -66,52 +66,8 @@ export interface EmployerInterface extends Document {
         default: []
     }]
 }
-export const Employer:Model<EmployerInterface> = model("Employer", EmployerSchema);
+
+export const Employer: Model<EmployerInterface> = model("Employer", EmployerSchema);
 
 
 
-const JobSchema = new Schema({
-    title: {
-        type: String,
-        required: true
-    },
-    description: {
-        type: String,
-        required: true
-    },
-    employer: {
-        type: Schema.Types.ObjectId,
-        ref: "Employer",
-        required: true
-    },
-    location: {
-        type: String,
-        required: true
-    },
-    salary: {
-        type: String,
-        required: true
-    },
-    currency: {
-        type: String,
-        required: true
-    },
-    date: {
-        type: Date,
-        default: Date.now
-    }
-});
-export interface JobInterface extends Document {
-    title: string,
-    description: string,
-    employer: {
-        type: Schema.Types.ObjectId,
-        ref: "Employer",
-        required: true
-    },
-    location: string,
-    salary: string,
-    currency: string,
-    date: Date
-}
-export const Job:Model<JobInterface> = model("Job", JobSchema);

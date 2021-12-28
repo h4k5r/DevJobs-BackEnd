@@ -1,42 +1,47 @@
-import {NextFunction, Request, Response} from "express";
+import {Request, Response} from "express";
 import dotEnv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import * as crypto from "crypto";
 import {Employer} from "../../Models/Employers";
+import {getSalt} from "../../Utils/AuthUtils";
 
 
 dotEnv.config();
-const secret = process.env.JWT_EMPLOYER_SECRET ? process.env.JWT_EMPLOYER_SECRET : 'defaultEmployerSecret';
-const saltRounds: number = process.env.SALT_ROUNDS ? parseInt(process.env.SALT_ROUNDS) : 12;
+
 const hourInMilliseconds: number = 3600000;
 
 export const SignUp = async (req: Request, res: Response) => {
-    const {email, password} = req.body;
+    const {email, password, confirmPassword} = req.body;
 
-    if (!email || !password) {
+    if (!email || !password || !confirmPassword) {
         return res.status(400).json({
             success: false,
             message: "Please enter all fields"
         });
     }
-
-    const user = await Employer.findOne({email});
-    if (user) {
+    if (password !== confirmPassword) {
+        return res.status(400).json({
+            success: false,
+            message: "Passwords do not match"
+        });
+    }
+    const employer = await Employer.findOne({email});
+    if (employer) {
         return res.status(400).json({
             success: false,
             message: "User already exists"
         });
     }
 
-    const salt = await bcrypt.genSalt(saltRounds);
+    const salt = await bcrypt.genSalt(parseInt(process.env.SALT_ROUNDS!));
     const hashedPassword = await bcrypt.hash(password, salt);
-
+    const verificationToken = crypto.randomBytes(20).toString('hex');
     const newEmployer = new Employer({
         email,
         password: hashedPassword,
-        verify: false
-
+        verify: false,
+        verificationToken
     });
     const saved = await newEmployer.save();
     if (saved) {
@@ -61,14 +66,14 @@ export const Login = async (req: Request, res: Response) => {
             message: "Please enter all fields"
         });
     }
-    const user = await Employer.findOne({email});
-    if (!user) {
+    const employer = await Employer.findOne({email});
+    if (!employer) {
         return res.status(400).json({
             success: false,
             message: "User does not exist"
         });
     }
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, employer.password);
     if (!isMatch) {
         return res.status(400).json({
             success: false,
@@ -76,7 +81,7 @@ export const Login = async (req: Request, res: Response) => {
         });
     }
 
-    const token = jwt.sign({_id: user._id}, secret, {
+    const token = jwt.sign({_id: employer._id}, process.env.JWT_EMPLOYER_SECRET!, {
         expiresIn: '24h',
     });
     return res.status(200).json({
@@ -96,32 +101,40 @@ export const ResetPassword = async (req: Request, res: Response) => {
         });
     }
     const user = await Employer.findOne({email});
-    if (user) {
-        const token = crypto.randomBytes(20).toString('hex');
-        user.resetPasswordToken = token;
-        user.resetPasswordExpires = new Date(Date.now() + hourInMilliseconds);
-        const saved = await user.save();
-        // send email with token link
-        // if (saved) {
-        //     return res.status(200).json({
-        //         success: true,
-        //         message: "Reset password link sent successfully"
-        //     });
-        // }
+    if (!user) {
+        return res.json({
+            message: "If User exists, email will be sent"
+        });
+    }
+    user.resetPasswordToken = crypto.randomBytes(20).toString('hex');
+    user.resetPasswordExpires = new Date(Date.now() + hourInMilliseconds);
+    const updated = await user.save();
+    if (!updated) {
         return res.status(500).json({
             success: false,
             message: "Reset password link not sent"
         });
     }
-    res.json({
-        message: "If User exists, email will be sent"
+    // send email with token link
+
+    return res.status(200).json({
+        success: true,
+        message: "Reset password link sent successfully"
     });
+
+
 }
 
 export const ResetToken = async (req: Request, res: Response) => {
     const token = req.params.token;
-    const {password} = req.body;
+    const {password, confirmPassword} = req.body;
     // console.log(token, password);
+    if (!password || !confirmPassword) {
+        return res.status(400).json({
+            success: false,
+            message: "Please enter all fields"
+        });
+    }
     const employer = await Employer.findOne({resetPasswordToken: token});
     if (!employer) {
         return res.status(400).json({
@@ -135,48 +148,44 @@ export const ResetToken = async (req: Request, res: Response) => {
             message: "Token is invalid or expired"
         });
     }
-    const salt = await bcrypt.genSalt(saltRounds);
+    const salt = await getSalt();
     employer.password = await bcrypt.hash(password, salt);
     employer.resetPasswordToken = "";
     employer.resetPasswordExpires = new Date(0);
     const saved = await employer.save();
-    if (saved) {
-        return res.status(200).json({
-            success: true,
-            message: "Password changed successfully"
+    if (!saved) {
+        return res.status(500).json({
+            success: false,
+            message: "Password not changed"
         });
     }
-    return res.status(500).json({
-        success: false,
-        message: "Password not changed"
+    res.status(200).json({
+        success: true,
+        message: "Password changed successfully"
     });
-
 }
 
-export const ValidateToken = async (req: Request, res: Response, next: NextFunction) => {
-    const token = req.header('Authorization')?.split(' ')[1];
-    if (!token) {
+export const VerifyEmployer = async (req: Request, res: Response) => {
+    const token = req.params.token;
+    console.log(token);
+    const employer = await Employer.findOne({verificationToken: token});
+    if (!employer) {
         return res.status(400).json({
             success: false,
-            message: "No token provided"
+            message: "Token is invalid or expired"
         });
     }
-    if (isTokenValid(token)) {
-        next();
-        return;
+    employer.isVerified = true;
+    employer.verificationToken = "";
+    const saved = await employer.save();
+    if (!saved) {
+        return res.status(500).json({
+            success: false,
+            message: "User not verified"
+        });
     }
-    return res.status(400).json({
-        success: false,
-        message: "Token is invalid"
+    res.status(200).json({
+        success: true,
+        message: "User verified successfully"
     });
-}
-const isTokenValid: (token: string) => boolean = (token: string) => {
-    let isValid = false;
-    jwt.verify(token, secret, (err, decoded) => {
-        if (err) {
-            return
-        }
-        isValid = true;
-    });
-    return isValid;
 }
