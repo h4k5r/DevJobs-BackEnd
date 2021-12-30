@@ -2,8 +2,8 @@ import {Request, Response} from "express";
 import dotEnv from "dotenv";
 import jwt from "jsonwebtoken";
 import {Employer, EmployerInterface} from "../Models/Employers";
-import {Job, JobInterface} from "../Models/Job";
-import {extractToken} from "../Utils/AuthUtils";
+import {Job, JobInterface, responseJobInterface} from "../Models/Job";
+import {extractToken, getApplicantFromToken, getEmployerFromToken} from "../Utils/AuthUtils";
 import Applicant, {ApplicantInterface} from "../Models/Applicant";
 
 
@@ -11,15 +11,30 @@ dotEnv.config()
 
 export const GetJobs = async (req: Request, res: Response) => {
     const start = req.query.start?.toString() ? req.query.start.toString() : "0";
-    const end = req.query.end?.toString() ? req.query.end.toString() : "10";
-    const jobs: JobInterface[] = await Job.find({}).skip(parseInt(start)).limit(parseInt(end));
-    if (jobs.length > 0) {
+    const limit = req.query.limit?.toString() ? req.query.limit.toString() : "10";
+    const jobs: JobInterface[] = await Job.find({}).skip(parseInt(start)).limit(parseInt(limit));
+    const transformedJobs =  jobs.map(async (job) => {
+        const employer: EmployerInterface | null =  await Employer.findById(job.employer);
+        if (!employer) {
+            return;
+        }
+        return {
+            id: job._id,
+            title: job.title,
+            type: job.type,
+            company: employer.companyName,
+            location: job.location,
+            time: job.date.toDateString(),
+            company_logo: "",
+        }
+    });
+    if (transformedJobs.length > 0) {
         res.status(200).json({
             success: true,
-            jobs: jobs
+            jobs: await Promise.all(transformedJobs),
         });
     } else {
-        res.status(404).json({
+        res.status(200).json({
             success: false,
             message: "No jobs found"
         });
@@ -28,32 +43,69 @@ export const GetJobs = async (req: Request, res: Response) => {
 
 export const GetJobById = async (req: Request, res: Response) => {
     const jobId = req.params.id;
-    const job = await Job.findById(jobId);
-    if (job) {
-        res.status(200).json({
-            success: true,
-            message: "Job found",
-            job
-        });
-    } else {
-        res.status(404).json({
+    let job: JobInterface | null
+    try {
+        job = await Job.findById(jobId);
+    } catch (e) {
+        return;
+    }
+    if (!job) {
+        return res.status(404).json({
             success: false,
             message: "Job not found"
         });
     }
+    const employer: EmployerInterface | null = await Employer.findById(job.employer);
+    if (!employer) {
+        return res.status(404).json({
+            success: false,
+            message: "Employer not found"
+        });
+    }
+    const transformedJob:responseJobInterface = {
+        id: job._id,
+        title: job.title,
+        type: job.type,
+        description: job.description,
+        company: employer.companyName,
+        location: job.location,
+        url: job.formUrl,
+        created_at: job.date.toDateString(),
+        company_logo: "",
+        company_url: employer.companyWebsite,
+        requirements: job.requirements,
+        what_you_will_do: job.whatYoullDo,
+        salary: job.salary,
+    };
+    res.status(200).json({
+        success: true,
+        message: "Job found",
+        job:{
+            ...transformedJob
+        }
+    });
 }
 
 export const CreateJob = async (req: Request, res: Response) => {
-    const employer: EmployerInterface | null = await getEmployerFromToken(req);
+    const employer: EmployerInterface | null = await getEmployerFromToken(extractToken(req));
     if (!employer) return res.status(404).json({message: "Employer Not Found"});
     const postedJob = req.body.job;
+    console.log(postedJob);
     let isPostedJobValid: boolean = false
     if (postedJob.title &&
         postedJob.description &&
         postedJob.salary &&
         postedJob.location &&
-        postedJob.currency.length === 1) {
-        isPostedJobValid = true;
+        postedJob.currency.length === 1 &&
+        postedJob.requirements &&
+        postedJob.whatYoullDo &&
+        postedJob.type &&
+        postedJob.formUrl) {
+        postedJob.requirements = postedJob.requirements.split(",");
+        postedJob.whatYoullDo = postedJob.whatYoullDo.split(",");
+        if (postedJob.requirements.length > 0 && postedJob.whatYoullDo.length > 0) {
+            isPostedJobValid = true;
+        }
     }
     if (!isPostedJobValid) return res.status(400).json({message: "Invalid Job"});
     const job: JobInterface = new Job({
@@ -62,7 +114,11 @@ export const CreateJob = async (req: Request, res: Response) => {
         salary: postedJob.salary,
         location: postedJob.location,
         currency: postedJob.currency,
-        employer: employer?._id
+        employer: employer?._id,
+        requirements: postedJob.requirements,
+        whatYoullDo: postedJob.whatYoullDo,
+        type: postedJob.type,
+        formUrl: postedJob.formUrl
     });
     employer.jobs.push(job._id);
     const savedJob: JobInterface | null = await job.save();
@@ -75,7 +131,7 @@ export const CreateJob = async (req: Request, res: Response) => {
 }
 
 export const UpdateJob = async (req: Request, res: Response) => {
-    const employer: EmployerInterface | null = await getEmployerFromToken(req);
+    const employer: EmployerInterface | null = await getEmployerFromToken(extractToken(req));
     if (!employer) return res.status(404).json({message: "Employer Not Found"});
     const jobId = req.params.id;
     if (!employer.jobs.find(job => job.toString() === jobId)) {
@@ -104,7 +160,7 @@ export const UpdateJob = async (req: Request, res: Response) => {
 }
 
 export const DeleteJob = async (req: Request, res: Response) => {
-    const employer: EmployerInterface | null = await getEmployerFromToken(req);
+    const employer: EmployerInterface | null = await getEmployerFromToken(extractToken(req));
     if (!employer) return res.status(404).json({message: "Employer Not Found"});
     const jobId = req.params.id;
     if (!employer.jobs.find(job => job.toString() === jobId)) {
@@ -134,7 +190,7 @@ export const ApplyToJob = async (req: Request, res: Response) => {
             success: false,
             message: "Job Not Found"
         });
-    const applicant: ApplicantInterface | null = await getApplicantFromToken(req);
+    const applicant: ApplicantInterface | null = await getApplicantFromToken(extractToken(req));
     if (!applicant)
         return res.status(404).json({
             success: false,
@@ -162,26 +218,6 @@ export const ApplyToJob = async (req: Request, res: Response) => {
     });
 }
 
-const getEmployerFromToken: (req: Request) => Promise<EmployerInterface | null> = async (req: Request) => {
-    const token: string = extractToken(req);
-    const JWT_SECRET: string = process.env.JWT_EMPLOYER_SECRET ? process.env.JWT_EMPLOYER_SECRET : "";
-    let employerId: string = "";
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) return
-        employerId = decoded?._id ? decoded?._id : "";
-    });
-    const employer: EmployerInterface | null = await Employer.findById(employerId);
-    return employer;
-}
 
-const getApplicantFromToken: (req: Request) => Promise<ApplicantInterface | null> = async (req: Request) => {
-    const token: string = extractToken(req);
-    const JWT_SECRET: string = process.env.JWT_APPLICANT_SECRET ? process.env.JWT_APPLICANT_SECRET : "";
-    let applicantId: string = "";
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) return
-        applicantId = decoded?._id ? decoded?._id : "";
-    });
-    const applicant: ApplicantInterface | null = await Applicant.findById(applicantId);
-    return applicant;
-}
+
+

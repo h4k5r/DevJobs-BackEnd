@@ -9,6 +9,12 @@ import EmployerRoutes from "./Routes/EmployerRoutes";
 const app = express();
 dotEnv.config();
 app.use(bodyParser.json());
+app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', process.env.FRONTEND_URL? process.env.FRONTEND_URL : "");
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,Content-type,Authorization');
+    next();
+});
 app.use('/employer', EmployerRoutes);
 app.use('/applicant', ApplicantRoutes);
 app.use('/jobs', JobRoutes)

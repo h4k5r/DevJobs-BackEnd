@@ -2,7 +2,7 @@ import express from "express";
 import {GetJobs, GetJobById, CreateJob, UpdateJob, DeleteJob} from "../Controllers/JobsController";
 import {
     ApplicantTokenValidateMiddleware,
-    EmployerTokenValidateMiddleware, isApplicantVerifiedMiddleware,
+    EmployerTokenValidateMiddleware, isApplicantVerifiedMiddleware, isEmployerProfileComplete,
     isEmployerVerifiedMiddleware
 } from "../Middlewares/AuthMiddleware";
 
@@ -15,13 +15,13 @@ router.get("/", GetJobs);
 router.get("/:id", GetJobById);
 
 //create a job
-router.post("/", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, CreateJob);
+router.post("/", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, isEmployerProfileComplete, CreateJob);
 
 //update a job
-router.put("/:id", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, UpdateJob);
+router.put("/:id", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, isEmployerProfileComplete, UpdateJob);
 
 //delete a job
-router.delete("/:id", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, DeleteJob);
+router.delete("/:id", EmployerTokenValidateMiddleware, isEmployerVerifiedMiddleware, isEmployerProfileComplete, DeleteJob);
 
 //apply to a job
 router.post("/:id/apply", ApplicantTokenValidateMiddleware, isApplicantVerifiedMiddleware);

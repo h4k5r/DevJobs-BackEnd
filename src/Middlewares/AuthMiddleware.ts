@@ -2,7 +2,7 @@ import {NextFunction, Request, Response} from "express";
 import dotEnv from "dotenv";
 import {checkToken, extractToken} from "../Utils/AuthUtils";
 import jwt, {JwtPayload} from "jsonwebtoken";
-import {Employer} from "../Models/Employers";
+import {Employer, EmployerInterface} from "../Models/Employers";
 import Applicant from "../Models/Applicant";
 
 dotEnv.config();
@@ -18,16 +18,8 @@ export const ApplicantTokenValidateMiddleware = (req: Request, res: Response, ne
 }
 
 export const isEmployerVerifiedMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-    const token = extractToken(req);
-    const employerSecret = process.env.JWT_EMPLOYER_SECRET ? process.env.JWT_EMPLOYER_SECRET : 'defaultEmployerSecret';
-    const payload: JwtPayload = jwt.verify(token, employerSecret) as JwtPayload;
-    const employer = await Employer.findOne({_id: payload._id});
-    if (!employer) {
-        return res.status(401).json({
-            success: false,
-            message: "Employer not found"
-        })
-    }
+    const employer = await getEmployer(req, res);
+    if (!employer) return
     if (!employer.isVerified) {
         return res.status(401).json({
             success: false,
@@ -35,9 +27,18 @@ export const isEmployerVerifiedMiddleware = async (req: Request, res: Response, 
         })
     }
     next();
-
 }
-
+export const isEmployerProfileComplete = async (req:Request,res:Response,next:NextFunction) => {
+    const employer = await getEmployer(req, res);
+    if (!employer) return
+    if (!employer.profileComplete) {
+        return res.status(401).json({
+            success: false,
+            message: "Employer profile not complete"
+        })
+    }
+    next();
+}
 export const isApplicantVerifiedMiddleware = async (req: Request, res: Response, next: NextFunction) => {
     const token = extractToken(req);
     const applicantSecret = process.env.JWT_APPLICANT_SECRET ? process.env.JWT_APPLICANT_SECRET : 'defaultApplicantSecret';
@@ -57,7 +58,20 @@ export const isApplicantVerifiedMiddleware = async (req: Request, res: Response,
     }
     next();
 }
-
+const getEmployer = async (req:Request,res:Response) => {
+    const token = extractToken(req);
+    const employerSecret = process.env.JWT_EMPLOYER_SECRET ? process.env.JWT_EMPLOYER_SECRET : 'defaultEmployerSecret';
+    const payload: JwtPayload = jwt.verify(token, employerSecret) as JwtPayload;
+    const employer = await Employer.findOne({_id: payload._id});
+    if (!employer) {
+        res.status(401).json({
+            success: false,
+            message: "Employer not found"
+        })
+        return null;
+    }
+    return employer;
+}
 
 
 

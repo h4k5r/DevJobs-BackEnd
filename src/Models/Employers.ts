@@ -41,6 +41,10 @@ const EmployerSchema = new Schema({
         type: String,
         required: false
     },
+    companyLogo: {
+        type: String,
+        required: false
+    },
     jobs: [{
         type: Schema.Types.ObjectId,
         ref: "Job",
@@ -50,16 +54,17 @@ const EmployerSchema = new Schema({
 
 export interface EmployerInterface extends Document {
     _id: Schema.Types.ObjectId;
-    companyName: string,
-    companyAddress: string,
     email: string,
     password: string,
     resetPasswordToken: string,
     resetPasswordExpires: Date,
     isVerified: boolean,
     verificationToken: string,
-    profileComplete: boolean,
+    companyName: string,
+    companyAddress: string,
     companyWebsite: string,
+    companyLogo: string,
+    profileComplete: boolean,
     jobs: [{
         type: Schema.Types.ObjectId,
         ref: "Job",
