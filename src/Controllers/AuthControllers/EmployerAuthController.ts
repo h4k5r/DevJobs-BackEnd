@@ -189,3 +189,22 @@ export const VerifyEmployer = async (req: Request, res: Response) => {
         message: "User verified successfully"
     });
 }
+
+export const ValidToken = async (req: Request, res: Response) => {
+    res.status(200).json({
+        success: true,
+        message: "Token is valid"
+    });
+}
+export const VerifiedProfile = async (req: Request, res: Response) => {
+    res.status(200).json({
+        success: true,
+        message: "Employer is verified"
+    });
+}
+export const CompletedProfile = async (req: Request, res: Response) => {
+    res.status(200).json({
+        success: true,
+        message: "Employer profile is completed"
+    });
+}

@@ -3,9 +3,10 @@ import {
     Login,
     ResetPassword,
     ResetToken,
-    SignUp,
+    SignUp, ValidToken,
     VerifyApplicant
 } from "../../Controllers/AuthControllers/ApplicantAuthController";
+import {ApplicantTokenValidateMiddleware} from "../../Middlewares/AuthMiddleware";
 
 const router = Router();
 
@@ -24,6 +25,8 @@ router.post('/reset-password/:token', ResetToken);
 
 //verify applicant with dynamic token
 router.get('/verify/:token',VerifyApplicant)
+
+router.get('validateToken',ApplicantTokenValidateMiddleware,ValidToken)
 
 
 export default router;

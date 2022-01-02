@@ -178,6 +178,13 @@ export const VerifyApplicant = async (req:Request,res:Response) => {
     });
 }
 
+export const ValidToken = async (req: Request, res: Response) => {
+    return res.status(200).json({
+        success: true,
+        message: "Token is valid"
+    });
+}
+
 
 
 
