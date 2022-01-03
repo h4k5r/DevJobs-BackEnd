@@ -1,7 +1,7 @@
 import {Request, Response} from "express";
 import {extractToken, getEmployerFromToken} from "../Utils/AuthUtils";
 import {EmployerInterface} from "../Models/Employers";
-import {Job, JobInterface} from "../Models/Job";
+import {Job} from "../Models/Job";
 
 export const GetProfile = async (req: Request, res: Response) => {
     const employer: EmployerInterface | null = await getEmployerFromToken(extractToken(req));
@@ -13,7 +13,6 @@ export const GetProfile = async (req: Request, res: Response) => {
         return;
     }
     const jobs = await Job.find({employer: employer._id}).exec();
-    console.log(jobs);
 
     res.status(200).send({
         success: true,
@@ -44,7 +43,7 @@ export const UpdateProfile = async (req: Request, res: Response) => {
     if (companyWebsite) {
         employer.companyWebsite = companyWebsite;
     }
-    if(employer.companyName && employer.companyAddress && employer.companyWebsite) {
+    if (employer.companyName && employer.companyAddress && employer.companyWebsite) {
         employer.profileComplete = true;
     }
     const savedEmployer = await employer.save();

@@ -1,10 +1,9 @@
 import {Request, Response} from "express";
 import dotEnv from "dotenv";
-import jwt from "jsonwebtoken";
 import {Employer, EmployerInterface} from "../Models/Employers";
 import {Job, JobInterface, responseJobInterface} from "../Models/Job";
 import {extractToken, getApplicantFromToken, getEmployerFromToken} from "../Utils/AuthUtils";
-import Applicant, {ApplicantInterface} from "../Models/Applicant";
+import {ApplicantInterface} from "../Models/Applicant";
 
 
 dotEnv.config()
@@ -13,8 +12,8 @@ export const GetJobs = async (req: Request, res: Response) => {
     const start = req.query.start?.toString() ? req.query.start.toString() : "0";
     const limit = req.query.limit?.toString() ? req.query.limit.toString() : "10";
     const jobs: JobInterface[] = await Job.find({}).skip(parseInt(start)).limit(parseInt(limit));
-    const transformedJobs =  jobs.map(async (job) => {
-        const employer: EmployerInterface | null =  await Employer.findById(job.employer);
+    const transformedJobs = jobs.map(async (job) => {
+        const employer: EmployerInterface | null = await Employer.findById(job.employer);
         if (!employer) {
             return;
         }
@@ -62,7 +61,7 @@ export const GetJobById = async (req: Request, res: Response) => {
             message: "Employer not found"
         });
     }
-    const transformedJob:responseJobInterface = {
+    const transformedJob: responseJobInterface = {
         id: job._id,
         title: job.title,
         type: job.type,
@@ -80,7 +79,7 @@ export const GetJobById = async (req: Request, res: Response) => {
     res.status(200).json({
         success: true,
         message: "Job found",
-        job:{
+        job: {
             ...transformedJob
         }
     });

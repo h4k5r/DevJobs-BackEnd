@@ -2,6 +2,7 @@ import {Request, Response} from "express";
 import dotEnv from "dotenv";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import sendGrid from "@sendgrid/mail";
 import * as crypto from "crypto";
 import {Employer} from "../../Models/Employers";
 import {getSalt} from "../../Utils/AuthUtils";
@@ -43,18 +44,33 @@ export const SignUp = async (req: Request, res: Response) => {
         verify: false,
         verificationToken
     });
-    const saved = await newEmployer.save();
-    if (saved) {
-        return res.status(200).json({
-            success: true,
-            message: "User created successfully"
+    sendGrid.setApiKey(process.env.SENDGRID_API_KEY!);
+    const msg = {
+        to: email,
+        from: 'rahul16086@gmail.com',
+        subject: 'Verify your email',
+        text: 'click on the link to verify your email',
+        html: `<a href="${process.env.FRONTEND_URL}/api/verify/employer/${verificationToken}">Verify</a>`
+    }
+    const response = await sendGrid.send(msg);
+    if (!response) {
+        return res.status(500).json({
+            success: false,
+            message: "Error sending email"
         });
     }
-    return res.status(500).json({
-        success: false,
-        message: "User not created"
-    });
+    const saved = await newEmployer.save();
 
+    if (!saved) {
+        return res.status(500).json({
+            success: false,
+            message: "User not created"
+        });
+    }
+    return res.status(200).json({
+        success: true,
+        message: "User created successfully"
+    });
 
 }
 
