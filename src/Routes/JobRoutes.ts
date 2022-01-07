@@ -1,5 +1,5 @@
 import express from "express";
-import {GetJobs, GetJobById, CreateJob, UpdateJob, DeleteJob} from "../Controllers/JobsController";
+import {GetJobs, GetJobById, CreateJob, UpdateJob, DeleteJob, SearchJob} from "../Controllers/JobsController";
 import {
     ApplicantTokenValidateMiddleware,
     EmployerTokenValidateMiddleware, isApplicantVerifiedMiddleware, isEmployerProfileComplete,
@@ -8,8 +8,14 @@ import {
 
 const router = express.Router();
 
+
 //get all jobs
 router.get("/", GetJobs);
+
+//search for jobs
+router.get("/search", SearchJob);
+
+
 
 //get a job by id
 router.get("/:id", GetJobById);

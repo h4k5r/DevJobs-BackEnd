@@ -85,6 +85,51 @@ export const GetJobById = async (req: Request, res: Response) => {
     });
 }
 
+export const SearchJob = async (req: Request, res: Response) => {
+    console.log('search triggered')
+    const keyword = req.query.keyword || "";
+    const location = req.query.location || "";
+    const type = req.query.type || "";
+    const jobs: JobInterface[] | null = await Job.find({
+        $or: [
+            {title: {$regex: keyword, $options: 'i'}},
+            {location: {$regex: location, $options: 'i'}},
+            {type: {$regex: type, $options: 'i'}},
+        ]
+    }).exec();
+    if (!jobs) {
+        return res.status(404).json({
+            success: false,
+            message: "No jobs found"
+        });
+    }
+    const transformedJobs = jobs.map(async (job) => {
+        const employer: EmployerInterface | null = await Employer.findById(job.employer);
+        if (!employer) {
+            return;
+        }
+        return {
+            id: job._id,
+            title: job.title,
+            type: job.type,
+            company: employer.companyName,
+            location: job.location,
+            time: job.date.toDateString(),
+            company_logo: "",
+        }
+    });
+    if (transformedJobs.length > 0) {
+        return res.status(200).json({
+            success: true,
+            jobs: await Promise.all(transformedJobs),
+        });
+    }
+    res.status(200).json({
+        success: false,
+        message: "No jobs found"
+    });
+}
+
 export const CreateJob = async (req: Request, res: Response) => {
     const employer: EmployerInterface | null = await getEmployerFromToken(extractToken(req));
     if (!employer) return res.status(404).json({message: "Employer Not Found"});
